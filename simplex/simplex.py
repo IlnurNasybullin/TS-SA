@@ -72,7 +72,9 @@ class Simplex:
     def _artificial_basis(self):
         size = self.B.size
         self.A = np.hstack((self.A, np.eye(size)))
-        self.C = np.hstack((np.zeros(self.C.size, dtype=float), np.ones(size, dtype=float)))
+        self.c_i0_index = self.C.size
+
+        self.C_i = np.hstack((np.zeros(self.c_i0_index, dtype=float), np.ones(size, dtype=float)))
 
     def _canonize(self):
         self._replacing_x()
@@ -119,9 +121,9 @@ class Simplex:
             coeff = -self.A[i, input_bas_i]
             self.A[i] += self.A[output_bas_i] * coeff
 
-    def _recalculates_A(self):
+    def _recalculates_A(self, border):
         while True:
-            input_index = self._first_positive(self.A[-1, :])
+            input_index = self._first_positive(self.A[-1, :border])
             if input_index == -1:
                 break
             output_index = self._teta(self.A, input_index)
@@ -132,19 +134,18 @@ class Simplex:
 
     def _check_bas_indexes(self):
         for index in self.bas_indexes:
-            if index >= self.c_i0_index:
+            if index >= self.C.size:
                 raise Exception("The system is difficult to solve. It is necessary to express an artificial basis as "
                                 "a linear combination of non-artificial bases")
 
     def _calc_i(self):
-        self.c_i0_index = self.C.size - self.B.size
+        self.bas_indexes = [i for i in range(self.c_i0_index, self.C_i.size)]
 
-        C_B = self.C[self.c_i0_index:]
-        self.bas_indexes = [i for i in range(self.c_i0_index, self.C.size)]
-        score_Jordan_Gauss = self.A.T.dot(C_B) - self.C
+        C_B = self.C_i[self.bas_indexes]
+        score_Jordan_Gauss = C_B.dot(self.A) - self.C_i
 
         self.A = np.vstack((self.A, np.resize(score_Jordan_Gauss, (1, score_Jordan_Gauss.size))))
-        self._recalculates_A()
+        self._recalculates_A(self.C_i.size)
 
         if self.A[-1, 0] != 0.0:
             raise Exception("The system is incompatible!")
@@ -152,18 +153,25 @@ class Simplex:
 
     def _calc(self):
         self._calc_i()
-        size = len(self.bas_indexes)
-        self.A[size] = self.A[:size].T.dot(self.C[self.bas_indexes]) - self.C
+        self.C = np.hstack((self.C, np.zeros(shape=self.B.size, dtype=float)))
 
-        self._recalculates_A()
+        size = len(self.bas_indexes)
+        self.A[size] = self.C[self.bas_indexes].dot(self.A[:size]) - self.C
+
+        self._recalculates_A(self.c_i0_index)
 
     def _replacing_y(self):
         if self._replacing_index != -1:
             arr = [self.C[self._replacing_index] - self.C[i] for i in range(1, self._replacing_index)]
             self.C = np.hstack((np.array([0.0], dtype=float), np.array([arr], dtype=float)))
 
+    def _recanonize_criterion_function(self):
+        if self._f_type == FunctionType.MAX:
+            self.C = -self.C
+            self.A[-1] = -self.A[-1]
+
     def _recanonize(self):
-        self._canonize_criterion_function()
+        self._recanonize_criterion_function()
         self._replacing_y()
 
     def solve(self, A: np, B: np, C: np, inequalities: List[Inequality] = None,
@@ -180,7 +188,7 @@ class Simplex:
         self._calc()
         self._recanonize()
 
-        X = [0 for i in range(1, self.C.size)]
+        X = [0 for i in range(1, self.c_i0_index)]
         for i in range(len(self.bas_indexes)):
             X[self.bas_indexes[i]] = self.A[i][0]
 
