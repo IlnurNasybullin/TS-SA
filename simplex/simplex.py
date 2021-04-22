@@ -103,15 +103,16 @@ class Simplex:
             if not self.normalized_x[i]:
                 self._replacing_index = self.C.size + 1
 
-                c_n += self.C[i]
-                self.C[i] = -self.C[i]
+                c_n -= self.C[i]
+                # self.C[i] = -self.C[i]
 
-                A_n += self.A[:, i]
-                self.A[:, i] = -self.A[:, i]
+                A_n -= np.resize(self.A[:, i], new_shape=A_n.shape)
+                # self.A[:, i] = -self.A[:, i]
 
         if self._replacing_index != -1:
             self.C = np.hstack((self.C, np.array([c_n], dtype=float)))
             self.A = np.hstack((self.A, A_n))
+            print(self.A)
 
     def _equalization(self):
         self._x_size = self.C.size
@@ -270,7 +271,8 @@ class Simplex:
     def _replacing_y(self):
         if self._replacing_index != -1:
             arr = [self.C[self._replacing_index] - self.C[i] for i in range(1, self._replacing_index)]
-            self.C = np.hstack((np.array([0.0], dtype=float), np.array([arr], dtype=float)))
+            self.C = np.hstack((np.array([0.0], dtype=float), np.array(arr, dtype=float)))
+            print(self.C)
 
     def _reverse_canonize_objective_function(self):
         if self._f_type == FunctionType.MAX:
@@ -281,10 +283,7 @@ class Simplex:
         self._reverse_canonize_objective_function()
         self._replacing_y()
 
-    def solve(self, A: np, B: np, C: np, inequalities: List[Inequality] = None,
-              f_type: FunctionType = FunctionType.MIN, normalized_x: List[bool] = None, log=False) \
-            -> [float, List[float]]:
-
+    def _solve(self, A, B, C, inequalities, f_type, normalized_x, log):
         self._f_type = f_type
         self.A = A.copy()
         self.B = B.copy()
@@ -295,10 +294,27 @@ class Simplex:
 
         self._canonize()
         self._calc()
-        self._reverse_canonize()
 
-        X = [0 for _ in range(1, self.C.size)]
+    def _get_answer(self):
+        f_x = self.A[-1, 0]
+
+        X_prep = [0 for _ in range(1, self.C.size)]
         for i in range(len(self.bas_indexes)):
-            X[self.bas_indexes[i]] = self.A[i][0]
+            X_prep[self.bas_indexes[i]] = self.A[i][0]
 
-        return self.A[-1, 0], X[1:self._x_size + 1]
+        if self._f_type == FunctionType.MAX:
+            f_x = -f_x
+        X = X_prep[1:self._x_size + 1]
+        if self._replacing_index != -1:
+            for i in range(self._replacing_index):
+                X_prep[i] -= X_prep[self._replacing_index]
+            X = X_prep[1:self._replacing_index]
+
+        return f_x, X
+
+    def solve(self, A: np, B: np, C: np, inequalities: List[Inequality] = None,
+              f_type: FunctionType = FunctionType.MIN, normalized_x: List[bool] = None, log=False) \
+            -> [float, List[float]]:
+        self._solve(A, B, C, inequalities, f_type, normalized_x, log)
+
+        return self._get_answer()

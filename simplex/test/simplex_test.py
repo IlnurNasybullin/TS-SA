@@ -143,6 +143,56 @@ class SimplexTestCase(unittest.TestCase):
         f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities, f_type=f_type)
         self.assertAlmostEqual(f_x_actual, f_x)
 
+    @data({
+        'A': np.array([[2, -1, 1],
+                       [4, -2, 1],
+                       [3, 0, 1]], dtype=float),
+        'B': np.array([1, -2, 5]),
+        'C': np.array([1, -1, -3]),
+        'inequalities': [smp.Inequality.LQ, smp.Inequality.GE, smp.Inequality.LQ],
+        'f_x': -46./3. ,
+        'X': [1./3., 11./3., 4]
+    })
+    @unpack
+    def test_solve_8(self, A, B, C, inequalities, f_x, X):
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities)
+
+        self.assertAlmostEqual(f_x_actual, f_x)
+        np.testing.assert_almost_equal(X_actual, X)
+
+    @data({
+        'A': np.array([[1, 3, 2, 2],
+                       [2, 2, 1, 1]], dtype=float),
+        'B': np.array([3, 3], dtype=float),
+        'C': np.array([5, 3, 4, -1], dtype=float),
+        'f_type': smp.FunctionType.MAX,
+        'f_x': 9,
+        'X': [1, 0, 1, 0]
+    })
+    @unpack
+    def test_solve_9(self, A, B, C, f_type, f_x, X):
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, f_type=f_type)
+
+        self.assertAlmostEqual(f_x_actual, f_x)
+        np.testing.assert_almost_equal(X_actual, X)
+
+    @data({
+        'A': np.array([[1, 1],
+                       [0, -1]], dtype=float),
+        'B': np.array([1, 3], dtype=float),
+        'C': np.array([-1, 2], dtype=float),
+        'inequalities': [smp.Inequality.LQ, smp.Inequality.LQ],
+        'normalized_x': [False, False],
+        'f_x': -10,
+        'X': [4, -3]
+    })
+    @unpack
+    def test_solve_10(self, A, B, C, inequalities, normalized_x, f_x, X):
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities, normalized_x=normalized_x, log=True)
+
+        self.assertAlmostEqual(f_x_actual, f_x)
+        np.testing.assert_almost_equal(X_actual, X)
+
 
 if __name__ == '__main__':
     unittest.main()
