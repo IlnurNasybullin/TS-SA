@@ -1,11 +1,22 @@
 import numpy as np
 from enum import Enum
-from typing import List
+from typing import List, Optional
+
+import pandas as pd
+
+"""
+Enum class for constraint of function type variables
+"""
 
 
 class FunctionType(Enum):
-    MIN = 1
-    MAX = -1
+    MIN = "min"
+    MAX = "max"
+
+
+"""
+Enum class for constraint of inequalities type variables
+"""
 
 
 class Inequality(Enum):
@@ -16,35 +27,78 @@ class Inequality(Enum):
     GR = '>'
 
 
+class SimplexSolveException(Exception):
+    pass
+
+
+class IncompatibleSimplexSolveException(SimplexSolveException):
+    pass
+
+
+class DifficultSimplexSolveException(SimplexSolveException):
+    pass
+
+"""
+Class that implemented simplex algorithm
+"""
+
+
 class Simplex:
 
+    _f_type: FunctionType
+    A: np
+    B: np
+    C: np
+    inequalities: list[Inequality]
+    normalized_x: Optional[list[bool]]
+
+    """
+        Set default variables; replacing index for X-vector's constraints normalization (X-vector's constraints are
+        normalized, if every x variable >= 0 (
+
+        .. math::
+            x_1 >= 0, x_2 >=0, ..., x_n >= 0
+         ))
+    """
+
     def __init__(self):
-        self._mults_ineq = {Inequality.EQ: 0.0, Inequality.LQ: 1.0, Inequality.LE: 1.0, Inequality.GE: -1.0,
-                            Inequality.GR: -1.0}
-        self._inv_ineq = {Inequality.EQ: Inequality.EQ, Inequality.LE: Inequality.GR, Inequality.LQ: Inequality.GE,
-                          Inequality.GR: Inequality.LE, Inequality.GE: Inequality.LQ}
+        self._a_in = {Inequality.EQ: 0.0, Inequality.LQ: 1.0, Inequality.LE: 1.0, Inequality.GE: -1.0,
+                      Inequality.GR: -1.0}
+        self._inv_in = {Inequality.EQ: Inequality.EQ, Inequality.LE: Inequality.GR, Inequality.LQ: Inequality.GE,
+                        Inequality.GR: Inequality.LE, Inequality.GE: Inequality.LQ}
         self._replacing_index = -1
+        self.log = False
 
-    def default_inequalities(self, count: int) -> List[Inequality]:
-        return [Inequality.EQ for i in range(count)]
+    """
+        Default (canonize) inequalities for simplex algorithm (all basic constraints are equations)
+    """
 
-    def default_normalized_x(self, count: int) -> List[bool]:
-        return [True for i in range(count)]
+    @staticmethod
+    def default_inequalities(count: int) -> List[Inequality]:
+        return [Inequality.EQ for _ in range(count)]
+
+    """
+        Default (canonize) X-vector's constraints for (every x variable is normalized (>= 0))
+    """
+
+    @staticmethod
+    def default_normalized_x(count: int) -> List[bool]:
+        return [True for _ in range(count)]
 
     def _canonize_B(self):
         for i in range(self.B.size):
             if self.B[i] < 0:
                 self.A[i] = -self.A[i]
                 self.B[i] = -self.B[i]
-                self.inequalities[i] = self._inv_ineq[self.inequalities[i]]
+                self.inequalities[i] = self._inv_in[self.inequalities[i]]
 
-    def _canonize_criterion_function(self):
+    def _canonize_objective_function(self):
         if self._f_type == FunctionType.MAX:
             self.C = -self.C
 
     def _replacing_x(self):
         c_n = 0.0
-        A_n = np.zeros(shape=(A.shape[0], 1), dtype=float)
+        A_n = np.zeros(shape=(self.A.shape[0], 1), dtype=float)
         for i in range(len(self.normalized_x)):
             if not self.normalized_x[i]:
                 self._replacing_index = self.C.size + 1
@@ -61,13 +115,14 @@ class Simplex:
 
     def _equalization(self):
         self._x_size = self.C.size
-        a_koeffs = []
-        for i in range(len(self.inequalities)):
-            a_koeffs.append(self._mults_ineq[self.inequalities[i]])
 
-        if a_koeffs:
-            self.C = np.hstack((self.C, np.zeros(shape=len(a_koeffs), dtype=float)))
-            self.A = np.hstack((self.A, np.diag(a_koeffs)))
+        A_dop = []
+        for i in range(len(self.inequalities)):
+            A_dop.append(self._a_in[self.inequalities[i]])
+
+        if A_dop:
+            self.C = np.hstack((self.C, np.zeros(shape=len(A_dop), dtype=float)))
+            self.A = np.hstack((self.A, np.diag(A_dop)))
 
     def _artificial_basis(self):
         size = self.B.size
@@ -76,9 +131,15 @@ class Simplex:
 
         self.C_i = np.hstack((np.zeros(self.c_i0_index, dtype=float), np.ones(size, dtype=float)))
 
+    def _log_data_preparation(self):
+        if self.log:
+            xSize = self.C_i.size
+            self.rows_data = np.array(["P_" + str(i) for i in range(xSize)])
+            self.columns_data = np.array(["B^-1 P_" + str(i) for i in range(xSize)])
+
     def _canonize(self):
         self._replacing_x()
-        self._canonize_criterion_function()
+        self._canonize_objective_function()
         self._canonize_B()
         self._equalization()
 
@@ -88,27 +149,31 @@ class Simplex:
 
         self._artificial_basis()
 
-    def _first_positive(self, score_Jordan_Gauss):
+        self._log_data_preparation()
+
+    @staticmethod
+    def _first_positive(score_Jordan_Gauss):
         for i in range(1, score_Jordan_Gauss.size):
             if score_Jordan_Gauss[i] > 0:
                 return i
 
         return -1
 
-    def _teta(self, A, JG_index):
+    @staticmethod
+    def _theta(A, JG_index):
         size = A.shape[0] - 1
 
         P0 = A[:size, 0]
         P_j = A[:size, JG_index]
 
-        min_teta = float('inf')
+        min_theta = float('inf')
         min_index = -1
 
         for i in range(size):
             if P_j[i] > 0.0:
-                teta = P0[i] / P_j[i]
-                if teta < min_teta:
-                    min_teta = teta
+                theta = P0[i] / P_j[i]
+                if theta < min_theta:
+                    min_theta = theta
                     min_index = i
 
         return min_index
@@ -118,27 +183,64 @@ class Simplex:
         for i in range(self.A.shape[0]):
             if i == output_bas_i:
                 continue
-            coeff = -self.A[i, input_bas_i]
-            self.A[i] += self.A[output_bas_i] * coeff
+            k = -self.A[i, input_bas_i]
+            self.A[i] += self.A[output_bas_i] * k
+
+    def _log_A(self):
+        if self.log:
+            I = pd.Index(self.rows_data[self.bas_indexes].tolist() + ["delta"])
+            C = pd.Index(self.columns_data)
+
+            pd.set_option('display.max_columns', None)
+            pd.set_option('display.max_rows', None)
+
+            df = pd.DataFrame(data=self.A, index=I, columns=C)
+            self._log(df)
 
     def _recalculates_A(self, border):
         while True:
+            self._log_A()
             input_index = self._first_positive(self.A[-1, :border])
             if input_index == -1:
                 break
-            output_index = self._teta(self.A, input_index)
+            output_index = self._theta(self.A, input_index)
             if output_index == -1:
-                raise Exception("The system is incompatible!")
+                raise IncompatibleSimplexSolveException("The system is incompatible!")
             self._recalculate_A(input_index, output_index)
             self.bas_indexes[output_index] = input_index
 
     def _check_bas_indexes(self):
         for index in self.bas_indexes:
             if index >= self.C.size:
-                raise Exception("The system is difficult to solve. It is necessary to express an artificial basis as "
-                                "a linear combination of non-artificial bases")
+                raise DifficultSimplexSolveException("The system is difficult to solve. "
+                    "It is necessary to express an artificial basis as a linear combination "
+                                                     "of non-artificial bases")
+
+    @staticmethod
+    def _log(msg):
+        print(msg)
+
+    def _printf_objective_function(self, C, f_type):
+        function_str = "F(x) = " + str(C[0])
+        x = "x" if self._replacing_index == -1 else "y"
+
+        size = len(C)
+        for i in range(1, size):
+            function_str += " + " + str(C[i]) + x + "_" + str(i)
+
+        return function_str + " -> " + f_type.value
+
+    def _log_calc_i(self):
+        if self.log:
+            self._log("artificial objective function: " + self._printf_objective_function(self.C_i, FunctionType.MIN))
+
+    def _log_calc(self):
+        if self.log:
+            self._log("Objective function: " + self._printf_objective_function(self.C[:self.c_i0_index], self._f_type))
 
     def _calc_i(self):
+        self._log_calc_i()
+
         self.bas_indexes = [i for i in range(self.c_i0_index, self.C_i.size)]
 
         C_B = self.C_i[self.bas_indexes]
@@ -147,13 +249,18 @@ class Simplex:
         self.A = np.vstack((self.A, np.resize(score_Jordan_Gauss, (1, score_Jordan_Gauss.size))))
         self._recalculates_A(self.C_i.size)
 
-        if self.A[-1, 0] != 0.0:
-            raise Exception("The system is incompatible!")
+        if not np.isclose(self.A[-1, 0], [0.0]):
+            raise IncompatibleSimplexSolveException("The system is incompatible!")
         self._check_bas_indexes()
 
     def _calc(self):
+        if self.log:
+            self._log("Simplex calculation with two-phase artificial basis method")
+
         self._calc_i()
         self.C = np.hstack((self.C, np.zeros(shape=self.B.size, dtype=float)))
+
+        self._log_calc()
 
         size = len(self.bas_indexes)
         self.A[size] = self.C[self.bas_indexes].dot(self.A[:size]) - self.C
@@ -165,17 +272,18 @@ class Simplex:
             arr = [self.C[self._replacing_index] - self.C[i] for i in range(1, self._replacing_index)]
             self.C = np.hstack((np.array([0.0], dtype=float), np.array([arr], dtype=float)))
 
-    def _recanonize_criterion_function(self):
+    def _reverse_canonize_objective_function(self):
         if self._f_type == FunctionType.MAX:
             self.C = -self.C
             self.A[-1] = -self.A[-1]
 
-    def _recanonize(self):
-        self._recanonize_criterion_function()
+    def _reverse_canonize(self):
+        self._reverse_canonize_objective_function()
         self._replacing_y()
 
     def solve(self, A: np, B: np, C: np, inequalities: List[Inequality] = None,
-              f_type: FunctionType = FunctionType.MIN, normalized_x: List[bool] = None) -> [float, List[float]]:
+              f_type: FunctionType = FunctionType.MIN, normalized_x: List[bool] = None, log=False) \
+            -> [float, List[float]]:
 
         self._f_type = f_type
         self.A = A.copy()
@@ -183,24 +291,14 @@ class Simplex:
         self.C = C.copy()
         self.inequalities = self.default_inequalities(self.B.size) if inequalities is None else inequalities.copy()
         self.normalized_x = self.default_normalized_x(self.C.size) if normalized_x is None else normalized_x
+        self.log = log
 
         self._canonize()
         self._calc()
-        self._recanonize()
+        self._reverse_canonize()
 
-        X = [0 for i in range(1, self.c_i0_index)]
+        X = [0 for _ in range(1, self.C.size)]
         for i in range(len(self.bas_indexes)):
             X[self.bas_indexes[i]] = self.A[i][0]
 
-        return self.A[-1, 0], X[1:self._x_size+1]
-
-
-A = np.array([[-1, 1, 1, 2, -3],
-              [1, 1, 4, 1, -8],
-              [0, 1, 1, 0, -4]], dtype=float)
-B = np.array([4, 3, -4], dtype=float)
-C = np.array([-1, -1, 1, 3, 7], dtype=float)
-
-simplex = Simplex()
-s = simplex.solve(A, B, C)
-print(s)
+        return self.A[-1, 0], X[1:self._x_size + 1]
