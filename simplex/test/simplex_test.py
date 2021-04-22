@@ -128,6 +128,21 @@ class SimplexTestCase(unittest.TestCase):
         self.assertAlmostEqual(f_x_actual, f_x)
         np.testing.assert_almost_equal(X_actual, X)
 
+    @data({
+        'A': np.array([[-2, 3],
+                       [1, 1],
+                       [1, -1]], dtype=float),
+        'B': np.array([12, 9, 3], dtype=float),
+        'C': np.array([1, -1], dtype=float),
+        'inequalities': [smp.Inequality.LQ, smp.Inequality.LQ, smp.Inequality.LQ],
+        'f_type': smp.FunctionType.MAX,
+        'f_x': 3
+    })
+    @unpack
+    def test_solve_7(self, A, B, C, inequalities, f_type, f_x):
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities, f_type=f_type)
+        self.assertAlmostEqual(f_x_actual, f_x)
+
 
 if __name__ == '__main__':
     unittest.main()
