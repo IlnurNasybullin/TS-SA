@@ -109,7 +109,6 @@ class Simplex:
         if self._replacing_index != -1:
             self.C = np.hstack((self.C, np.array([c_n], dtype=float)))
             self.A = np.hstack((self.A, A_n))
-            print(self.A)
 
     def _equalization(self):
         self._x_size = self.C.size
@@ -146,8 +145,6 @@ class Simplex:
         self.C = np.hstack((np.array([0.0], dtype=float), self.C))
 
         self._artificial_basis()
-
-        self._log_data_preparation()
 
     @staticmethod
     def _first_positive(score_Jordan_Gauss):
@@ -276,6 +273,7 @@ class Simplex:
         self.log = log
 
         self._canonize()
+        self._log_data_preparation()
         self._calc()
 
     def _get_answer(self):
@@ -289,8 +287,9 @@ class Simplex:
             f_x = -f_x
         X = X_prep[1:self._x_size + 1]
         if self._replacing_index != -1:
-            for i in range(self._replacing_index):
-                X_prep[i] -= X_prep[self._replacing_index]
+            for i in range(1, self._replacing_index):
+                if not self.normalized_x[i - 1]:
+                    X_prep[i] -= X_prep[self._replacing_index]
             X = X_prep[1:self._replacing_index]
 
         return f_x, X
