@@ -188,7 +188,24 @@ class SimplexTestCase(unittest.TestCase):
     })
     @unpack
     def test_solve_10(self, A, B, C, inequalities, normalized_x, f_x, X):
-        f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities, normalized_x=normalized_x, log=True)
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, inequalities, normalized_x=normalized_x)
+
+        self.assertAlmostEqual(f_x_actual, f_x)
+        np.testing.assert_almost_equal(X_actual, X)
+
+    @data({
+        'A': np.array([[2, -1, 0, -2, -2],
+                       [-1, 2, 1, 1, 0],
+                       [1, -2, 0, 2, 3]], dtype=float),
+        'B': np.array([4, 8, 6], dtype=float),
+        'C': np.array([1, 2, -2, 1, 1], dtype=float),
+        'normalized_x': [True, True, False, True, False],
+        'f_x': -18,
+        'X': [3, 0, 11, 0, 1]
+    })
+    @unpack
+    def test_solve_11(self, A, B, C, normalized_x, f_x, X):
+        f_x_actual, X_actual = self.simplex.solve(A, B, C, normalized_x=normalized_x)
 
         self.assertAlmostEqual(f_x_actual, f_x)
         np.testing.assert_almost_equal(X_actual, X)
