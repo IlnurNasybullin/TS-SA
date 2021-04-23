@@ -38,6 +38,7 @@ class IncompatibleSimplexSolveException(SimplexSolveException):
 class DifficultSimplexSolveException(SimplexSolveException):
     pass
 
+
 """
 Class that implemented simplex algorithm
 """
@@ -66,8 +67,6 @@ class Simplex:
                       Inequality.GR: -1.0}
         self._inv_in = {Inequality.EQ: Inequality.EQ, Inequality.LE: Inequality.GR, Inequality.LQ: Inequality.GE,
                         Inequality.GR: Inequality.LE, Inequality.GE: Inequality.LQ}
-        self._replacing_index = -1
-        self.log = False
 
     """
         Default (canonize) inequalities for simplex algorithm (all basic constraints are equations)
@@ -104,10 +103,8 @@ class Simplex:
                 self._replacing_index = self.C.size + 1
 
                 c_n -= self.C[i]
-                # self.C[i] = -self.C[i]
 
                 A_n -= np.resize(self.A[:, i], new_shape=A_n.shape)
-                # self.A[:, i] = -self.A[:, i]
 
         if self._replacing_index != -1:
             self.C = np.hstack((self.C, np.array([c_n], dtype=float)))
@@ -268,22 +265,8 @@ class Simplex:
 
         self._recalculates_A(self.c_i0_index)
 
-    def _replacing_y(self):
-        if self._replacing_index != -1:
-            arr = [self.C[self._replacing_index] - self.C[i] for i in range(1, self._replacing_index)]
-            self.C = np.hstack((np.array([0.0], dtype=float), np.array(arr, dtype=float)))
-            print(self.C)
-
-    def _reverse_canonize_objective_function(self):
-        if self._f_type == FunctionType.MAX:
-            self.C = -self.C
-            self.A[-1] = -self.A[-1]
-
-    def _reverse_canonize(self):
-        self._reverse_canonize_objective_function()
-        self._replacing_y()
-
     def _solve(self, A, B, C, inequalities, f_type, normalized_x, log):
+        self._replacing_index = -1
         self._f_type = f_type
         self.A = A.copy()
         self.B = B.copy()
