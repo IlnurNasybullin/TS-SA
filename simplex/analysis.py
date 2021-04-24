@@ -1,8 +1,50 @@
-from simplex import Simplex, FunctionType, Inequality
+from simplex import Simplex, FunctionType, Inequality, IncompatibleSimplexSolveException
 import numpy as np
 
 
 class Analysis:
+
+    class Meta:
+        def __init__(self):
+            self.meta_dict = {}
+
+    class SimplexAnalysis(Simplex):
+
+        def __init__(self, simplex):
+            self.A = simplex.A.copy()
+            self.B = simplex.B.copy()
+            self.C = simplex.C.copy()
+            self._f_type = simplex._f_type
+            self.inequalities = simplex.inequalities.copy()
+            self.log = simplex.log
+            self._replacing_index = simplex._replacing_index
+            self.c_i0_index = simplex.c_i0_index
+            self.bas_indexes = simplex.bas_indexes.copy()
+            self.normalized_x = simplex.normalized_x.copy()
+            if simplex.log:
+                self.rows_data = simplex.rows_data
+                self.columns_data = simplex.columns_data
+            self.C_i = simplex.C_i.copy()
+            self._x_size = simplex._x_size
+
+        def _recalculates_A(self, border):
+            iter_count = 0
+
+            while True:
+                self._log_A()
+                input_index = self._first_positive(self.A[-1, :border])
+                if input_index == -1:
+                    break
+                output_index = self._theta(self.A, input_index)
+                if output_index == -1:
+                    raise IncompatibleSimplexSolveException("The system is incompatible!")
+                self._recalculate_A(input_index, output_index)
+                self.bas_indexes[output_index] = input_index
+                iter_count += 1
+
+            self.meta_data = Analysis.Meta()
+            self.meta_data.meta_dict["iter_count"] = iter_count
+    
     def __init__(self, simplex):
         self.simplex = simplex
 
@@ -110,18 +152,62 @@ class Analysis:
         left_range, right_range = self.c_delta(i)
         return c_i + left_range, c_i + right_range
 
+    def _get_simplex_copy(self):
+        return Analysis.SimplexAnalysis(self.simplex)
 
-A = np.array([[1, 4],
-              [3, 5],
-              [6, 1],
-              [7, 2]], dtype=float)
-B = np.array([3, 5, 2, 10], dtype=float)
-C = np.array([1000, 1500], dtype=float)
-f_type = FunctionType.MIN
-inequalities = [Inequality.GE, Inequality.GE, Inequality.GE, Inequality.GE]
+    def _replacing_x_canonize_C(self, C):
+        if self.simplex._replacing_index == -1:
+            return C
+        
+        c_i = 0
+        for i in range(len(C)):
+            if not self.simplex.normalized_x[i]:
+                c_i -= C[i]
+        
+        C = np.hstack((C, np.array([c_i], dtype=float)))
+        return C
+
+    def _function_type_C(self, C):
+        if self.simplex._f_type == FunctionType.MAX:
+            C = -C
+        canonized_C = self.simplex.C.copy()
+        for i in range(1, len(C) + 1):
+            canonized_C[i] = C[i - 1]
+
+        return canonized_C
+
+    def _get_canonized_C(self, C):
+        C_ar = self._replacing_x_canonize_C(C)
+        return self._function_type_C(C_ar)
+        
+    def _resolve_C(self, simplex):
+        size = len(simplex.bas_indexes)
+        simplex.A[size] = simplex.C[simplex.bas_indexes].dot(simplex.A[:size]) - simplex.C
+        print(simplex.A)
+        simplex._recalculates_A(simplex.c_i0_index)
+
+    def replace_C(self, C):
+        simplex = self._get_simplex_copy()
+        simplex.C = self._get_canonized_C(C.copy())
+        print(simplex.C)
+        self._resolve_C(simplex)
+        return simplex._get_answer(), simplex.meta_data
+
+
+A = np.array([[-1, 1],
+              [0, 1],
+              [1, 0]], dtype=float)
+B = np.array([2, 1, 3], dtype=float)
+C = np.array([6, 10], dtype=float)
+f_type = FunctionType.MAX
+inequalities = [Inequality.LQ, Inequality.LQ, Inequality.LQ]
 
 smp = Simplex()
-f_x, X = smp.solve(A, B, C, f_type=f_type, inequalities=inequalities)
+f_x, X = smp.solve(A, B, C, f_type=f_type, inequalities=inequalities, log=True)
+print(f_x)
+print(X)
 anl = Analysis(smp)
-print(anl.c_i_range(1))
-print(anl.c_i_range(2))
+(f_x, X), meta_data = anl.replace_C(np.array([-1, 10], dtype=float))
+print(f_x)
+print(X)
+print(meta_data.meta_dict)
