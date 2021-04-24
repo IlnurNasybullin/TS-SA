@@ -149,7 +149,8 @@ class Simplex:
     @staticmethod
     def _first_positive(score_Jordan_Gauss):
         for i in range(1, score_Jordan_Gauss.size):
-            if score_Jordan_Gauss[i] > 0:
+            val = score_Jordan_Gauss[i]
+            if not np.isclose(val, 0) and val > 0:
                 return i
 
         return -1
