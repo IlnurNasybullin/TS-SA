@@ -50,7 +50,8 @@ if __name__ == "__main__":
     normalized_x = simplex_data['normalized_x']
 
     simplex = Simplex()
-    f_x, X = simplex.solve(A, B, C, inequalities=inequalities, f_type=f_type, normalized_x=normalized_x, log=True)
+    f_x, X = simplex.solve(A, B, C, inequalities=inequalities, f_type=f_type, normalized_x=normalized_x, log=False)
+    print("C = ", C)
     print("X = ", X)
     print("f(X) = ", f_x)
     analysis(simplex, C)
