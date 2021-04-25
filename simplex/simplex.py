@@ -27,12 +27,29 @@ class Inequality(Enum):
     GR = '>'
 
 
+"""
+class for raising exceptions in case any problem during solving simplex task
+"""
+
+
 class SimplexSolveException(Exception):
     pass
 
 
+"""
+This exception guarantees that the original problem statement was unsolvable - the system of basic restrictions was 
+incompatible
+"""
+
+
 class IncompatibleSimplexSolveException(SimplexSolveException):
     pass
+
+
+"""
+This exception is NOT guarantee that the original problem was unsolvable. Unfortunately, the tasks are existed that
+difficult to solve algorithmically
+"""
 
 
 class DifficultSimplexSolveException(SimplexSolveException):
@@ -45,7 +62,6 @@ Class that implemented simplex algorithm
 
 
 class Simplex:
-
     _f_type: FunctionType
     A: np
     B: np
@@ -89,7 +105,7 @@ class Simplex:
             if self.B[i] < 0:
                 self.A[i] = -self.A[i]
                 self.B[i] = -self.B[i]
-                self.inequalities[i] = self._inv_in[self.inequalities[i]]
+                self.inequalities[i] = self._inv_in[self.inequalities[i]]  # # #
 
     def _canonize_objective_function(self):
         if self._f_type == FunctionType.MAX:
@@ -209,7 +225,7 @@ class Simplex:
         for index in self.bas_indexes:
             if index >= self.C.size:
                 raise DifficultSimplexSolveException("The system is difficult to solve. "
-                    "It is necessary to express an artificial basis as a linear combination "
+                                                     "It is necessary to express an artificial basis as a linear combination "
                                                      "of non-artificial bases")
 
     @staticmethod

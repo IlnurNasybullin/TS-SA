@@ -190,22 +190,3 @@ class Analysis:
         simplex.C = self._get_canonized_C(C.copy())
         self._resolve_C(simplex)
         return simplex._get_answer(), simplex.meta_data
-
-
-A = np.array([[-1, 1],
-              [0, 1],
-              [1, 0]], dtype=float)
-B = np.array([2, 1, 3], dtype=float)
-C = np.array([6, 10], dtype=float)
-f_type = FunctionType.MAX
-inequalities = [Inequality.LQ, Inequality.LQ, Inequality.LQ]
-
-smp = Simplex()
-f_x, X = smp.solve(A, B, C, f_type=f_type, inequalities=inequalities, log=True)
-print(f_x)
-print(X)
-anl = Analysis(smp)
-(f_x, X), meta_data = anl.replace_C(np.array([-1, 10], dtype=float))
-print(f_x)
-print(X)
-print(meta_data.meta_dict)
