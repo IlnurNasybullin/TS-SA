@@ -171,7 +171,7 @@ class Analysis:
         if self.simplex._f_type == FunctionType.MAX:
             C = -C
         canonized_C = self.simplex.C.copy()
-        for i in range(1, len(C) + 1):
+        for i in range(1, C.shape[0] + 1):
             canonized_C[i] = C[i - 1]
 
         return canonized_C
@@ -183,13 +183,11 @@ class Analysis:
     def _resolve_C(self, simplex):
         size = len(simplex.bas_indexes)
         simplex.A[size] = simplex.C[simplex.bas_indexes].dot(simplex.A[:size]) - simplex.C
-        print(simplex.A)
         simplex._recalculates_A(simplex.c_i0_index)
 
     def replace_C(self, C):
         simplex = self._get_simplex_copy()
         simplex.C = self._get_canonized_C(C.copy())
-        print(simplex.C)
         self._resolve_C(simplex)
         return simplex._get_answer(), simplex.meta_data
 
